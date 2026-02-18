@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "dev-notes": {
+      "command": "node",
+      "args": ["index.js"],
+      "cwd": "${workspaceRoot}/week4/dev-notes-server",
+      "env": {}
+    }
+  }
+}
