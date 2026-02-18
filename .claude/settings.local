@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm start)",
+      "Bash(node test-server.js:*)",
+      "mcp__dev-notes__save_note",
+      "mcp__dev-notes__list_notes",
+      "mcp__dev-notes__read_note"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "dev-notes"
+  ]
+}
