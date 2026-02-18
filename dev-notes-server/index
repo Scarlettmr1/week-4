@@ -1,0 +1,299 @@
+#!/usr/bin/env node
+
+/**
+ * Dev Notes MCP Server
+ *
+ * A simple Model Context Protocol server that manages markdown notes.
+ * Provides tools to save, list, and read notes stored in ~/dev-notes/
+ */
+
+const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
+const {
+  StdioServerTransport,
+} = require("@modelcontextprotocol/sdk/server/stdio.js");
+const {
+  CallToolRequestSchema,
+  ErrorCode,
+  ListToolsRequestSchema,
+  Tool,
+} = require("@modelcontextprotocol/sdk/types.js");
+
+const fs = require("fs").promises;
+const path = require("path");
+const { existsSync } = require("fs");
+
+// Get the notes directory path
+const NOTES_DIR = path.join(process.env.HOME || process.env.USERPROFILE, "dev-notes");
+
+/**
+ * Slugifies a string by converting it to lowercase, replacing spaces with hyphens,
+ * and removing special characters.
+ * Example: "Project Ideas" → "project-ideas"
+ */
+function slugify(str) {
+  return str
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-") // Replace spaces with hyphens
+    .replace(/[^a-z0-9-]/g, ""); // Remove special characters
+}
+
+/**
+ * Ensures the notes directory exists, creating it if necessary.
+ */
+async function ensureNotesDir() {
+  try {
+    // Create directory if it doesn't exist
+    await fs.mkdir(NOTES_DIR, { recursive: true });
+  } catch (error) {
+    throw new Error(`Failed to create notes directory: ${error.message}`);
+  }
+}
+
+/**
+ * Tool: save_note
+ * Saves a note with the given title and content to a markdown file.
+ * The filename is derived from the title (slugified).
+ */
+async function saveTool(title, content) {
+  await ensureNotesDir();
+
+  if (!title || typeof title !== "string") {
+    throw new Error("Title must be a non-empty string");
+  }
+  if (content === undefined) {
+    throw new Error("Content is required");
+  }
+
+  const slug = slugify(title);
+  if (!slug) {
+    throw new Error("Title must contain at least one alphanumeric character");
+  }
+
+  const filePath = path.join(NOTES_DIR, `${slug}.md`);
+
+  try {
+    await fs.writeFile(filePath, String(content), "utf-8");
+    return {
+      success: true,
+      message: `Note saved: ${filePath}`,
+      filename: `${slug}.md`,
+    };
+  } catch (error) {
+    throw new Error(`Failed to save note: ${error.message}`);
+  }
+}
+
+/**
+ * Tool: list_notes
+ * Returns a list of all markdown files in the notes directory
+ * with their titles and last-modified dates.
+ */
+async function listTool() {
+  await ensureNotesDir();
+
+  try {
+    const files = await fs.readdir(NOTES_DIR);
+    const mdFiles = files.filter((file) => file.endsWith(".md"));
+
+    if (mdFiles.length === 0) {
+      return {
+        notes: [],
+        count: 0,
+        message: "No notes found",
+      };
+    }
+
+    // Get metadata for each file
+    const notes = await Promise.all(
+      mdFiles.map(async (file) => {
+        const filePath = path.join(NOTES_DIR, file);
+        const stats = await fs.stat(filePath);
+        // Convert filename back to title (e.g., "project-ideas.md" → "project-ideas")
+        const title = file.replace(".md", "");
+
+        return {
+          title: title,
+          filename: file,
+          lastModified: stats.mtime.toISOString(),
+          size: stats.size,
+        };
+      })
+    );
+
+    return {
+      notes: notes,
+      count: notes.length,
+    };
+  } catch (error) {
+    throw new Error(`Failed to list notes: ${error.message}`);
+  }
+}
+
+/**
+ * Tool: read_note
+ * Reads and returns the contents of a note by its title.
+ * The title is slugified to find the matching markdown file.
+ */
+async function readTool(title) {
+  await ensureNotesDir();
+
+  if (!title || typeof title !== "string") {
+    throw new Error("Title must be a non-empty string");
+  }
+
+  const slug = slugify(title);
+  if (!slug) {
+    throw new Error("Title must contain at least one alphanumeric character");
+  }
+
+  const filePath = path.join(NOTES_DIR, `${slug}.md`);
+
+  try {
+    if (!existsSync(filePath)) {
+      throw new Error(`Note not found: ${title}`);
+    }
+
+    const content = await fs.readFile(filePath, "utf-8");
+    return {
+      title: title,
+      filename: `${slug}.md`,
+      content: content,
+    };
+  } catch (error) {
+    throw new Error(`Failed to read note: ${error.message}`);
+  }
+}
+
+/**
+ * Create and configure the MCP server
+ */
+const server = new Server(
+  {
+    name: "dev-notes",
+    version: "1.0.0",
+  },
+  {
+    capabilities: {
+      tools: {},
+    },
+  }
+);
+
+/**
+ * Handler for listing available tools
+ * Tells Claude what tools this server provides
+ */
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return {
+    tools: [
+      {
+        name: "save_note",
+        description:
+          "Save a new note or update an existing one. The title is converted to a slug for the filename (e.g., 'Project Ideas' becomes 'project-ideas.md')",
+        inputSchema: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description: "The title of the note",
+            },
+            content: {
+              type: "string",
+              description: "The markdown content of the note",
+            },
+          },
+          required: ["title", "content"],
+        },
+      },
+      {
+        name: "list_notes",
+        description:
+          "List all saved notes in the ~/dev-notes/ directory, including their titles, filenames, last-modified dates, and file sizes",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
+      {
+        name: "read_note",
+        description:
+          "Read and return the full contents of a note. Provide the title (slugified format like 'project-ideas')",
+        inputSchema: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description:
+                "The title or slug of the note to read (e.g., 'project-ideas')",
+            },
+          },
+          required: ["title"],
+        },
+      },
+    ],
+  };
+});
+
+/**
+ * Handler for tool calls
+ * Routes tool calls to the appropriate handler function
+ */
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+
+  try {
+    let result;
+
+    switch (name) {
+      case "save_note":
+        result = await saveTool(args.title, args.content);
+        break;
+
+      case "list_notes":
+        result = await listTool();
+        break;
+
+      case "read_note":
+        result = await readTool(args.title);
+        break;
+
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error: ${error.message}`,
+        },
+      ],
+      isError: true,
+    };
+  }
+});
+
+/**
+ * Initialize and start the server
+ * Uses stdio transport to communicate with Claude
+ */
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error("Dev Notes MCP server running on stdio");
+}
+
+main().catch((error) => {
+  console.error("Fatal error:", error);
+  process.exit(1);
+});
