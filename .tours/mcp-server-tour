@@ -1,0 +1,86 @@
+{
+  "title": "Dev Notes MCP Server Implementation",
+  "description": "A guided tour through the MCP server code, explaining how each component works",
+  "steps": [
+    {
+      "file": "index.js",
+      "line": 1,
+      "description": "# Dev Notes MCP Server Tour\n\nWelcome! This tour walks you through a complete MCP (Model Context Protocol) server implementation.\n\nThe shebang (`#!/usr/bin/env node`) allows this file to be executed directly as a script."
+    },
+    {
+      "file": "index.js",
+      "line": 10,
+      "description": "## Step 1: Importing Dependencies\n\nWe import the core MCP SDK components:\n- `Server` - the main MCP server class\n- `StdioServerTransport` - enables communication via standard input/output\n- Type schemas for validating requests\n\nThese allow Claude to discover and call our tools."
+    },
+    {
+      "file": "index.js",
+      "line": 21,
+      "description": "## Step 2: File System & Path Utilities\n\nWe use Node's built-in modules:\n- `fs.promises` - for async file operations\n- `path` - for cross-platform path handling (Windows/Mac/Linux)\n- `existsSync` - to check if files exist before reading them"
+    },
+    {
+      "file": "index.js",
+      "line": 26,
+      "description": "## Step 3: Notes Directory Configuration\n\n`NOTES_DIR` is set to `~/dev-notes/` using:\n- `process.env.HOME` on Mac/Linux\n- `process.env.USERPROFILE` on Windows\n\nThis ensures the notes are stored in the user's home directory across all platforms."
+    },
+    {
+      "file": "index.js",
+      "line": 33,
+      "description": "## Step 4: The Slugify Function\n\nThis helper converts titles to safe filenames:\n- \"Project Ideas\" → \"project-ideas.md\"\n- Converts to lowercase\n- Replaces spaces with hyphens\n- Removes special characters\n\nThis ensures filenames are safe and consistent."
+    },
+    {
+      "file": "index.js",
+      "line": 44,
+      "description": "## Step 5: Ensuring Directory Exists\n\n`ensureNotesDir()` creates the `~/dev-notes/` directory if it doesn't exist.\n\nThis is called before any operation that needs the directory, so users don't have to create it manually."
+    },
+    {
+      "file": "index.js",
+      "line": 51,
+      "description": "## Step 6: Tool #1 - Save Note\n\nThe `saveTool()` function:\n1. Validates the title and content inputs\n2. Slugifies the title to create a filename\n3. Writes the content as markdown to `~/dev-notes/{slug}.md`\n4. Returns success message with the file path\n\nExample: Saving \"Project Ideas\" with content \"Some notes...\" creates `project-ideas.md`"
+    },
+    {
+      "file": "index.js",
+      "line": 78,
+      "description": "## Step 7: Tool #2 - List Notes\n\nThe `listTool()` function:\n1. Reads all files in `~/dev-notes/`\n2. Filters for `.md` files only\n3. Gets metadata (filename, last modified, size) for each file\n4. Returns a list with the count of notes\n\nThis helps users discover what notes they have saved."
+    },
+    {
+      "file": "index.js",
+      "line": 115,
+      "description": "## Step 8: Tool #3 - Read Note\n\nThe `readTool()` function:\n1. Takes a title as input\n2. Slugifies it to find the matching `.md` file\n3. Checks if the file exists (returns error if not found)\n4. Reads and returns the full markdown content\n\nUsers can retrieve any note they've previously saved."
+    },
+    {
+      "file": "index.js",
+      "line": 143,
+      "description": "## Step 9: Creating the MCP Server\n\nWe instantiate a new `Server` with:\n- `name: \"dev-notes\"` - identifier for Claude\n- `version: \"1.0.0\"` - tracks the API version\n\nThis is the main server object that handles all communication."
+    },
+    {
+      "file": "index.js",
+      "line": 150,
+      "description": "## Step 10: Listing Available Tools\n\nThe `ListToolsRequestSchema` handler tells Claude what tools are available.\n\nFor each tool, we define:\n- `name` - how Claude calls it\n- `description` - what it does\n- `inputSchema` - what parameters it accepts (JSON Schema format)\n\nClaude uses this to know when and how to use each tool."
+    },
+    {
+      "file": "index.js",
+      "line": 197,
+      "description": "## Step 11: Handling Tool Calls\n\nThe `CallToolRequestSchema` handler processes when Claude actually calls a tool.\n\nIt:\n1. Extracts the tool name and arguments\n2. Routes to the appropriate handler (save, list, or read)\n3. Catches errors and returns them as error messages\n4. Returns results as formatted JSON text"
+    },
+    {
+      "file": "index.js",
+      "line": 227,
+      "description": "## Step 12: Starting the Server\n\nThe `main()` function:\n1. Creates a `StdioServerTransport` for stdio communication\n2. Connects the server to the transport\n3. Logs that the server is running\n\nThis is what makes the server listen for Claude's requests."
+    },
+    {
+      "file": "index.js",
+      "line": 234,
+      "description": "## Step 13: Error Handling & Startup\n\nThe final section:\n- Calls `main()` to start the server\n- Catches any fatal errors\n- Exits with code 1 if something goes wrong\n\nThis ensures the process terminates gracefully if there are problems."
+    },
+    {
+      "file": "package.json",
+      "line": 1,
+      "description": "## Step 14: Package Configuration\n\nThe `package.json` file:\n- Declares the project as a CommonJS module\n- Requires the MCP SDK as a dependency\n- Provides an `npm start` script to run the server\n\n**To start the server:** `npm start` from the dev-notes-server directory"
+    },
+    {
+      "file": "index.js",
+      "line": 1,
+      "description": "## Congratulations! 🎉\n\nYou've completed the tour of the MCP server implementation.\n\n### Quick Summary:\n- **3 Tools**: save_note, list_notes, read_note\n- **Storage**: Markdown files in `~/dev-notes/`\n- **Protocol**: Model Context Protocol (MCP) over stdio\n- **Ready to Use**: Works with Claude Code once configured\n\n### Next Steps:\n1. Start the server: `npm start`\n2. Configure it in Claude Code settings\n3. Start saving and organizing your dev notes!"
+    }
+  ]
+}
